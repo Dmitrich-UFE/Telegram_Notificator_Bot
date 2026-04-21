@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TelegramNotificatorBot
 
 TODO: Delete this and the text below, and describe your gem
@@ -37,3 +38,7 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/[USERN
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+=======
+# Telegram_Notificator_Bot
+Бот, написанный на Ruby, оповещает пользователя в заданное время.
+>>>>>>> dd5924e69c6d495d79bb6e8d84da96370a106b82
