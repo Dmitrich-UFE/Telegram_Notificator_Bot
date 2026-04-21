@@ -60,7 +60,9 @@ def start_scheduler(bot)
 
           due = data[:tasks].select { |t| t[:date] <= now }
           due.each do |task|
-            bot.api.send_message(chat_id: uid, text: "⏰ НАПОМИНАНИЕ: #{task[:title]}")
+            bot.api.send_message(chat_id: uid, text: "⏰
+            #{task[:title]}
+            Пришло время напомнить вам об этой задаче!")
             puts "[#{Time.now.strftime("%H:%M")}] Уведомление отправлено для #{uid}: #{task[:title]}"
             any_notified = true
           end
@@ -105,11 +107,12 @@ MAIN_MENU = Telegram::Bot::Types::ReplyKeyboardMarkup.new(
 )
 
 CANCEL_MENU = Telegram::Bot::Types::ReplyKeyboardMarkup.new(
-  keyboard: [[Telegram::Bot::Types::KeyboardButton.new(text: "Вернуться в меню")]],
+  keyboard: [[Telegram::Bot::Types::KeyboardButton.new(text: "Отменить создание задачи")]],
   resize_keyboard: true
 )
 
 # --- ОСНОВНОЙ ЦИКЛ ---
+if __FILE__ == $0
 Telegram::Bot::Client.run(TOKEN) do |bot|
   bot.api.delete_webhook
   puts "Бот-напоминалка запущен..."
@@ -142,28 +145,36 @@ Telegram::Bot::Client.run(TOKEN) do |bot|
       user = $users_data[uid] # Обязательно объявляем user
 
       case update.text
-      when "/start", "Вернуться в меню"
+      when "/start", "Отменить создание задачи"
         user[:status] = nil
-        send_main_menu(bot, update.chat.id, "Выберите действие:", "res/notificatorStart.png")
+        send_main_menu(bot, update.chat.id, "Привет! 
+Я - бот-напоминалка, напишите мне задачу, поставьте время напоминания и я вам напомню! 
+С чего начнём?", "res/notificatorStart.png")
 
       when "Помощь", "/help"
-        bot.api.send_message(chat_id: update.chat.id, text: "Команды: /start, /MyTasks, /createTask")
+        bot.api.send_message(chat_id: update.chat.id, text: "Основные функции: 
+/start - начать общение 
+/help - получить помощь 
+/MyTasks - получить список действующих задач 
+/createTask - создать задание. Запишите задачу, которую нужно напомнить, дату и готово! 
+
+Если вам чужды такие команды, можете воспользоваться быстрыми ответами внизу чата")
 
       when "Создать задачу", "/createTask"
         user[:status] = :wait_for_title
-        bot.api.send_message(chat_id: update.chat.id, text: "Напишите название задачи:", reply_markup: CANCEL_MENU)
+        bot.api.send_message(chat_id: update.chat.id, text: "Напишите в чат свою задачу", reply_markup: CANCEL_MENU)
 
       when "Мои задачи", "/MyTasks"
         if user[:tasks].empty?
-          bot.api.send_message(chat_id: update.chat.id, text: "У вас пока нет задач.")
+          bot.api.send_message(chat_id: update.chat.id, text: "Задач еще нет. Создайте новую прямо сейчас!")
         else
           bot.api.send_message(chat_id: update.chat.id, text: "Ваши задачи:")
           user[:tasks].each do |t|
-            kb = [[Telegram::Bot::Types::InlineKeyboardButton.new(text: "❌ Удалить", callback_data: "delete_task_#{t[:id]}")]]
+            kb = [[Telegram::Bot::Types::InlineKeyboardButton.new(text: "❌ Удалить задачу", callback_data: "delete_task_#{t[:id]}")]]
             markup = Telegram::Bot::Types::InlineKeyboardMarkup.new(inline_keyboard: kb)
             bot.api.send_message(
               chat_id: update.chat.id,
-              text: "📍 #{t[:date].strftime("%d.%m %H:%M")} — #{t[:title]}",
+              text: " #{t[:date].strftime("%d.%m.%y %H:%M")} — #{t[:title]}",
               reply_markup: markup
             )
           end
@@ -174,18 +185,18 @@ Telegram::Bot::Client.run(TOKEN) do |bot|
         when :wait_for_title
           user[:current_task][:title] = update.text
           user[:status] = :wait_for_date
-          bot.api.send_message(chat_id: update.chat.id, text: "Введите дату (ДД.ММ.ГГГГ ЧЧ:ММ):")
+          bot.api.send_message(chat_id: update.chat.id, text: "Введите дату: ДД.ММ.ГГГГ ЧЧ:ММ. \nПример: 31.12.2024 18:00")
         when :wait_for_date
           begin
             date = Time.strptime(update.text, "%d.%m.%Y %H:%M")
             if date < Time.now
-              bot.api.send_message(chat_id: update.chat.id, text: "Дата в прошлом! Введите еще раз:")
+              bot.api.send_message(chat_id: update.chat.id, text: "Вперед в прошлое! Введите дату еще раз:")
             else
               task_id = Time.now.to_f.to_s
               user[:tasks] << { id: task_id, title: user[:current_task][:title], date: date }
               user[:status] = nil
               save_data
-              bot.api.send_message(chat_id: update.chat.id, text: "✅ Сохранено!", reply_markup: MAIN_MENU)
+              bot.api.send_message(chat_id: update.chat.id, text: "Отлично! Задача создана. Мы напомним вам о ней, чтобы вы не забыли выполнить!", reply_markup: MAIN_MENU)
             end
           rescue ArgumentError
             bot.api.send_message(chat_id: update.chat.id, text: "Ошибка формата. Нужно: 31.12.2024 18:00")
@@ -195,6 +206,78 @@ Telegram::Bot::Client.run(TOKEN) do |bot|
     end # конец case update
   end
 end
+end
+
+# Вынеси логику обработки сообщений в метод
+def handle_message(bot, update)
+  uid = update.from.id
+  $users_data[uid] ||= { tasks: [], status: nil, current_task: {} }
+  user = $users_data[uid]
+
+  case update.text
+  when "/start", "Отменить создание задачи"
+    user[:status] = nil
+    send_main_menu(bot, update.chat.id, "Продолжим?", "res/notificatorStart.png")
+  when "Создать задачу"
+    user[:status] = :wait_for_title
+    bot.api.send_message(chat_id: update.chat.id, text: "Напишите в чат свою задачу")
+  when "Мои задачи", "/MyTasks"
+        if user[:tasks].empty?
+          bot.api.send_message(chat_id: update.chat.id, text: "Задач еще нет. Создайте новую прямо сейчас!")
+        else
+          bot.api.send_message(chat_id: update.chat.id, text: "Ваши задачи:")
+          user[:tasks].each do |t|
+            kb = [[Telegram::Bot::Types::InlineKeyboardButton.new(text: "❌ Удалить задачу", callback_data: "delete_task_#{t[:id]}")]]
+            markup = Telegram::Bot::Types::InlineKeyboardMarkup.new(inline_keyboard: kb)
+            bot.api.send_message(
+              chat_id: update.chat.id,
+              text: "📍 #{t[:date].strftime("%d.%m %H:%M")} — #{t[:title]}",
+              reply_markup: markup
+            )
+          end
+        end
+  else
+    # ВОТ ЭТОТ БЛОК ДОЛЖЕН БЫТЬ ЗДЕСЬ
+    case user[:status]
+    when :wait_for_title
+      user[:current_task][:title] = update.text
+      user[:status] = :wait_for_date
+      bot.api.send_message(chat_id: update.chat.id, text: "Введите дату:")
+    when :wait_for_date
+        begin
+          date = Time.strptime(update.text, "%d.%m.%Y %H:%M")
+          if date < Time.now
+            bot.api.send_message(chat_id: update.chat.id, text: "Дата в прошлом! Введите еще раз:")
+          else
+            task_id = Time.now.to_f.to_s
+            user[:tasks] << { id: task_id, title: user[:current_task][:title], date: date }
+            user[:status] = nil
+            save_data
+            bot.api.send_message(chat_id: update.chat.id, text: "✅ Сохранено!", reply_markup: MAIN_MENU)
+          end
+        rescue ArgumentError
+        bot.api.send_message(chat_id: update.chat.id, text: "Ошибка формата. Нужно: 31.12.2024 18:00")
+      end
+    end
+  end
+end
+
+
+# Вынеси логику планировщика (тело цикла) в метод
+def check_due_tasks(bot)
+  now = Time.now
+  any_notified = false
+  $users_data.each do |uid, data|
+    due = data[:tasks].select { |t| t[:date] <= now }
+    due.each do |task|
+      bot.api.send_message(chat_id: uid, text: "⏰ НАПОМИНАНИЕ: #{task[:title]}")
+      any_notified = true
+    end
+    data[:tasks].delete_if { |t| t[:date] <= now }
+  end
+  save_data if any_notified
+end
+
 
 
 # ruby lib/Telegram_Notificator_Bot.rb

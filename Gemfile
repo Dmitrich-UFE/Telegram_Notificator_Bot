@@ -15,3 +15,5 @@ gem "rubocop", "~> 1.21"
 gem "telegram-bot-ruby", "~> 2.7"
 
 gem "dotenv", "~> 3.2"
+
+gem "rspec", "~> 3.13"
